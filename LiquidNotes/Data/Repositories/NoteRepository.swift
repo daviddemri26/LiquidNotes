@@ -16,7 +16,7 @@ struct NoteRepository {
         note.updatedAt = .now
         if note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            note.bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !note.isDeleted {
+           !note.isTrashed {
             note.title = ""
         }
         saveIfNeeded(context)
@@ -35,23 +35,23 @@ struct NoteRepository {
 
     static func togglePinned(_ note: Note, in context: ModelContext) {
         note.isPinned.toggle()
-        touch(note, in: context)
+        saveIfNeeded(context)
     }
 
     static func toggleFavorite(_ note: Note, in context: ModelContext) {
         note.isFavorite.toggle()
-        touch(note, in: context)
+        saveIfNeeded(context)
     }
 
     static func moveToTrash(_ note: Note, in context: ModelContext) {
-        note.isDeleted = true
+        note.isTrashed = true
         note.isArchived = false
         note.deletedAt = .now
         touch(note, in: context)
     }
 
     static func restoreFromTrash(_ note: Note, in context: ModelContext) {
-        note.isDeleted = false
+        note.isTrashed = false
         note.deletedAt = nil
         touch(note, in: context)
     }
@@ -97,21 +97,21 @@ struct NoteRepository {
         var hasUpdates = false
 
         for note in notes {
-            if note.isArchived && !note.isDeleted {
+            if note.isArchived && !note.isTrashed {
                 note.isArchived = false
-                note.isDeleted = true
+                note.isTrashed = true
                 note.deletedAt = note.updatedAt
                 hasUpdates = true
             }
 
-            if note.isDeleted && note.deletedAt == nil {
+            if note.isTrashed && note.deletedAt == nil {
                 note.deletedAt = note.updatedAt
                 hasUpdates = true
             }
         }
 
         let expiryInterval = TimeInterval(trashRetentionDays * 24 * 60 * 60)
-        for note in notes where note.isDeleted {
+        for note in notes where note.isTrashed {
             guard let deletedAt = note.deletedAt else { continue }
             if deletedAt.addingTimeInterval(expiryInterval) <= referenceDate {
                 context.delete(note)
@@ -125,7 +125,7 @@ struct NoteRepository {
     }
 
     static func trashDaysRemaining(for note: Note, referenceDate: Date = .now) -> Int? {
-        guard note.isDeleted else { return nil }
+        guard note.isTrashed else { return nil }
         guard let deletedAt = note.deletedAt else { return trashRetentionDays }
 
         let expiryDate = deletedAt.addingTimeInterval(TimeInterval(trashRetentionDays * 24 * 60 * 60))

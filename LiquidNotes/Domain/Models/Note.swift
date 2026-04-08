@@ -11,7 +11,7 @@ final class Note {
     var isPinned: Bool
     var isFavorite: Bool
     var isArchived: Bool
-    var isDeleted: Bool
+    var isTrashed: Bool
     var deletedAt: Date?
     var colorMarkerHex: String?
     var reminderDate: Date?
@@ -29,7 +29,7 @@ final class Note {
         isPinned: Bool = false,
         isFavorite: Bool = false,
         isArchived: Bool = false,
-        isDeleted: Bool = false,
+        isTrashed: Bool = false,
         deletedAt: Date? = nil,
         colorMarkerHex: String? = nil,
         reminderDate: Date? = nil,
@@ -45,7 +45,7 @@ final class Note {
         self.isPinned = isPinned
         self.isFavorite = isFavorite
         self.isArchived = isArchived
-        self.isDeleted = isDeleted
+        self.isTrashed = isTrashed
         self.deletedAt = deletedAt
         self.colorMarkerHex = colorMarkerHex
         self.reminderDate = reminderDate
@@ -90,7 +90,7 @@ extension Note {
             updatedAt: updatedAt,
             isPinned: isPinned,
             isFavorite: isFavorite,
-            isDeleted: isDeleted,
+            isTrashed: isTrashed,
             deletedAt: deletedAt,
             reminderDate: reminderDate,
             tags: tagNames

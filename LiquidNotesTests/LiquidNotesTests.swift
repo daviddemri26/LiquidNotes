@@ -10,18 +10,18 @@ struct LiquidNotesTests {
         let context = ModelContext(makeInMemoryContainer())
 
         let note = NoteRepository.create(in: context)
-        #expect(note.isDeleted == false)
+        #expect(note.isTrashed == false)
 
         NoteRepository.update(note, title: "Title", body: "Body", in: context)
         #expect(note.title == "Title")
         #expect(note.bodyText == "Body")
 
         NoteRepository.moveToTrash(note, in: context)
-        #expect(note.isDeleted == true)
+        #expect(note.isTrashed == true)
         #expect(note.deletedAt != nil)
 
         NoteRepository.restoreFromTrash(note, in: context)
-        #expect(note.isDeleted == false)
+        #expect(note.isTrashed == false)
         #expect(note.deletedAt == nil)
     }
 
@@ -29,16 +29,16 @@ struct LiquidNotesTests {
     func queryEngineSortingFilteringSearch() {
         let now = Date.now
         let notes = [
-            NoteProjection(id: UUID(), title: "Bravo", body: "Hello", createdAt: now, updatedAt: now, isPinned: false, isFavorite: false, isDeleted: false, deletedAt: nil, reminderDate: nil, tags: ["work"]),
-            NoteProjection(id: UUID(), title: "Alpha", body: "World", createdAt: now.addingTimeInterval(-10), updatedAt: now.addingTimeInterval(-10), isPinned: true, isFavorite: true, isDeleted: false, deletedAt: nil, reminderDate: nil, tags: ["home"])
+            NoteProjection(id: UUID(), title: "Bravo", body: "Hello", createdAt: now, updatedAt: now, isPinned: false, isFavorite: false, isTrashed: false, deletedAt: nil, reminderDate: nil, tags: ["work"]),
+            NoteProjection(id: UUID(), title: "Alpha", body: "World", createdAt: now.addingTimeInterval(-10), updatedAt: now.addingTimeInterval(-10), isPinned: true, isFavorite: true, isTrashed: false, deletedAt: nil, reminderDate: nil, tags: ["home"])
         ]
 
         let scoped = NoteQueryEngine.scoped(notes, scope: .notes)
         let filtered = NoteQueryEngine.filtered(scoped, searchText: "world", requiredTag: nil)
         #expect(filtered.count == 1)
 
-        let sorted = NoteQueryEngine.sorted(scoped, by: .alphabetical)
-        #expect(sorted.first?.title == "Alpha")
+        let sorted = NoteQueryEngine.sorted(scoped, scope: .notes)
+        #expect(sorted.first?.isPinned == true)
     }
 
     @MainActor
@@ -46,7 +46,7 @@ struct LiquidNotesTests {
     func purgeExpiredTrashRemovesOldNotes() throws {
         let context = ModelContext(makeInMemoryContainer())
         let oldDeletedAt = Calendar.current.date(byAdding: .day, value: -8, to: .now) ?? .now
-        let note = Note(title: "Old", isDeleted: true, deletedAt: oldDeletedAt)
+        let note = Note(title: "Old", isTrashed: true, deletedAt: oldDeletedAt)
         context.insert(note)
         try context.save()
 

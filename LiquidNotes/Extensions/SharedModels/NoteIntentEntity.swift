@@ -21,7 +21,7 @@ struct NoteIntentEntityQuery: EntityStringQuery {
         let descriptor = FetchDescriptor<Note>()
         let notes = try context.fetch(descriptor)
         return notes
-            .filter { identifiers.contains($0.id) && !$0.isDeleted }
+            .filter { identifiers.contains($0.id) && !$0.isTrashed }
             .map { NoteIntentEntity(id: $0.id, title: $0.effectiveTitle) }
     }
 
@@ -33,7 +33,7 @@ struct NoteIntentEntityQuery: EntityStringQuery {
 
         return notes
             .filter {
-                !$0.isDeleted
+                !$0.isTrashed
                     && ($0.effectiveTitle.localizedCaseInsensitiveContains(string)
                         || $0.effectivePreview.localizedCaseInsensitiveContains(string))
             }
@@ -47,7 +47,7 @@ struct NoteIntentEntityQuery: EntityStringQuery {
         let descriptor = FetchDescriptor<Note>(sortBy: [SortDescriptor(\Note.updatedAt, order: .reverse)])
         let notes = try context.fetch(descriptor)
         return notes
-            .filter { !$0.isDeleted }
+            .filter { !$0.isTrashed }
             .prefix(10)
             .map { NoteIntentEntity(id: $0.id, title: $0.effectiveTitle) }
     }

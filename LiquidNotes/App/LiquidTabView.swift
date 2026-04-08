@@ -13,24 +13,11 @@ struct LiquidTabView: View {
     @Namespace private var dockNamespace
 
     var body: some View {
-        ZStack {
-            NotesListScreen(
-                scope: .notes,
-                handlesExternalRouting: selectedScope == .notes,
-                searchText: $searchText
-            )
-                .opacity(selectedScope == .notes ? 1 : 0)
-                .allowsHitTesting(selectedScope == .notes)
-
-            NotesListScreen(
-                scope: .favorites,
-                handlesExternalRouting: selectedScope == .favorites,
-                searchText: $searchText
-            )
-                .opacity(selectedScope == .favorites ? 1 : 0)
-                .allowsHitTesting(selectedScope == .favorites)
-        }
-        .animation(.snappy(duration: 0.3), value: selectedScope)
+        NotesListScreen(
+            scope: selectedScope,
+            handlesExternalRouting: true,
+            searchText: $searchText
+        )
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomDock
         }
@@ -79,7 +66,6 @@ struct LiquidTabView: View {
         .padding(.top, 8)
         .padding(.bottom, 8)
         .background(Color.clear)
-        .animation(.spring(duration: 0.32, bounce: 0.14), value: isSearchExpanded)
     }
 
     private var compactDock: some View {
@@ -88,9 +74,7 @@ struct LiquidTabView: View {
                 systemImage: "note.text",
                 isSelected: selectedScope == .notes
             ) {
-                withAnimation(.snappy(duration: 0.22)) {
-                    selectedScope = .notes
-                }
+                selectedScope = .notes
                 dependencies.haptics.selection()
             }
 
@@ -98,9 +82,7 @@ struct LiquidTabView: View {
                 systemImage: "star",
                 isSelected: selectedScope == .favorites
             ) {
-                withAnimation(.snappy(duration: 0.22)) {
-                    selectedScope = .favorites
-                }
+                selectedScope = .favorites
                 dependencies.haptics.selection()
             }
 
@@ -163,18 +145,16 @@ struct LiquidTabView: View {
     }
 
     private func collapseSearch() {
-        withAnimation(.spring(duration: 0.32, bounce: 0.14)) {
+        withAnimation(.snappy(duration: 0.22)) {
             isSearchExpanded = false
-            searchText = ""
         }
+        searchText = ""
     }
 
     private func createAndOpenNote() {
         let note = NoteRepository.create(in: modelContext)
         dependencies.haptics.impact(.medium)
-        withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
-            dependencies.router.routeToNote(with: note.id)
-        }
+        dependencies.router.routeToNote(with: note.id)
     }
 }
 

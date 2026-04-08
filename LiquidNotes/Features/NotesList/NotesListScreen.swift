@@ -21,8 +21,6 @@ struct NotesListScreen: View {
     @Query(sort: [SortDescriptor(\Note.updatedAt, order: .reverse)])
     private var allNotes: [Note]
 
-    @Namespace private var transitionNamespace
-
     @State private var selectedTag: String?
     @State private var path: [UUID] = []
     @State private var secondaryDestination: NotesSecondaryDestination?
@@ -40,10 +38,11 @@ struct NotesListScreen: View {
     }
 
     private var availableTags: [String] {
-        let all = allNotes
-            .filter { !$0.isDeleted }
-            .flatMap(\.tagNames)
-        return Array(Set(all)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        var tags = Set<String>()
+        for note in allNotes where !note.isTrashed {
+            tags.formUnion(note.tagNames)
+        }
+        return tags.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     private var visibleNotes: [Note] {
@@ -51,8 +50,9 @@ struct NotesListScreen: View {
         let scoped = NoteQueryEngine.scoped(projections, scope: scope)
         let filtered = NoteQueryEngine.filtered(scoped, searchText: searchText, requiredTag: selectedTag)
         let sorted = NoteQueryEngine.sorted(filtered, scope: scope)
+        let notesByID = Dictionary(uniqueKeysWithValues: allNotes.map { ($0.id, $0) })
         return sorted.compactMap { projection in
-            allNotes.first(where: { $0.id == projection.id })
+            notesByID[projection.id]
         }
     }
 
@@ -94,7 +94,6 @@ struct NotesListScreen: View {
             .navigationDestination(for: UUID.self) { noteID in
                 if let note = allNotes.first(where: { $0.id == noteID }) {
                     NoteEditorScreen(note: note)
-                        .navigationTransition(.zoom(sourceID: note.id, in: transitionNamespace))
                 }
             }
             .sheet(item: $secondaryDestination) { destination in
@@ -108,9 +107,6 @@ struct NotesListScreen: View {
             }
             .onChange(of: allNotes.map(\.id)) { _, _ in
                 processPendingRouteIfPossible()
-            }
-            .task(id: allNotes.count) {
-                NoteRepository.purgeExpiredTrash(in: modelContext)
             }
         }
     }
@@ -139,14 +135,18 @@ struct NotesListScreen: View {
                 let pinned = visibleNotes.filter(\.isPinned)
                 let recent = visibleNotes.filter { !$0.isPinned }
 
-                if !pinned.isEmpty {
-                    Section("Pinned") {
-                        noteRows(pinned)
+                Section {
+                    noteRows(pinned)
+                } header: {
+                    if !pinned.isEmpty {
+                        Text("Pinned")
                     }
                 }
 
-                Section("Recent") {
+                Section {
                     noteRows(recent)
+                } header: {
+                    Text("Recent")
                 }
             } else {
                 Section {
@@ -155,7 +155,6 @@ struct NotesListScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .animation(.snappy(duration: 0.28), value: visibleNotes.map(\.id))
     }
 
     @ViewBuilder
@@ -164,7 +163,6 @@ struct NotesListScreen: View {
             NavigationLink(value: note.id) {
                 VStack(alignment: .leading, spacing: 6) {
                     NoteRowView(note: note)
-                        .matchedTransitionSource(id: note.id, in: transitionNamespace)
 
                     if scope == .trash {
                         Text(retentionText(for: note))
@@ -201,7 +199,10 @@ struct NotesListScreen: View {
                     .tint(.green)
                 } else {
                     Button {
-                        NoteRepository.togglePinned(note, in: modelContext)
+                        withAnimation(.snappy(duration: 0.22)) {
+                            NoteRepository.togglePinned(note, in: modelContext)
+                        }
+                        dependencies.haptics.selection()
                     } label: {
                         Image(systemName: note.isPinned ? "pin.fill" : "pin")
                     }
@@ -224,7 +225,10 @@ struct NotesListScreen: View {
             }
         } else {
             Button(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.fill" : "pin") {
-                NoteRepository.togglePinned(note, in: modelContext)
+                withAnimation(.snappy(duration: 0.22)) {
+                    NoteRepository.togglePinned(note, in: modelContext)
+                }
+                dependencies.haptics.selection()
             }
             Button(note.isFavorite ? "Unfavorite" : "Favorite", systemImage: note.isFavorite ? "star.slash" : "star") {
                 NoteRepository.toggleFavorite(note, in: modelContext)
@@ -238,9 +242,7 @@ struct NotesListScreen: View {
     private func createAndOpenNote() {
         let note = NoteRepository.create(in: modelContext)
         dependencies.haptics.impact(.medium)
-        withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
-            path = [note.id]
-        }
+        path = [note.id]
     }
 
     private func moveToTrash(_ note: Note) {
@@ -254,9 +256,7 @@ struct NotesListScreen: View {
         guard allNotes.contains(where: { $0.id == id }) else { return }
 
         if path.last != id {
-            withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
-                path = [id]
-            }
+            path = [id]
         }
         _ = dependencies.router.consumePendingNoteID()
     }

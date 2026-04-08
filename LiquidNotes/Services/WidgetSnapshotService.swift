@@ -15,7 +15,7 @@ struct WidgetSnapshotService {
         let notes = (try? context.fetch(descriptor)) ?? []
 
         return notes
-            .filter { !$0.isDeleted }
+            .filter { !$0.isTrashed }
             .prefix(limit)
             .map {
                 WidgetNoteSnapshot(

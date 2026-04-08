@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NoteRowView: View {
     let note: Note
+    private let maxInlineTags = 3
 
     var body: some View {
         VStack(alignment: .leading, spacing: LNTheme.Spacing.xSmall) {
@@ -32,16 +33,20 @@ struct NoteRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
 
-            if !note.tagNames.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: LNTheme.Spacing.xSmall) {
-                        ForEach(note.tagNames, id: \.self) { tag in
-                            Text("#\(tag)")
-                                .font(.caption)
-                                .padding(.horizontal, LNTheme.Spacing.small)
-                                .padding(.vertical, 4)
-                                .background(.thinMaterial, in: Capsule(style: .continuous))
-                        }
+            let tags = note.tagNames
+            if !tags.isEmpty {
+                HStack(spacing: LNTheme.Spacing.xSmall) {
+                    ForEach(Array(tags.prefix(maxInlineTags)), id: \.self) { tag in
+                        Text("#\(tag)")
+                            .font(.caption)
+                            .padding(.horizontal, LNTheme.Spacing.small)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.14), in: Capsule(style: .continuous))
+                    }
+                    if tags.count > maxInlineTags {
+                        Text("+\(tags.count - maxInlineTags)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .accessibilityLabel("Tags")

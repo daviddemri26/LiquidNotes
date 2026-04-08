@@ -8,7 +8,7 @@ struct NoteProjection: Identifiable, Sendable {
     let updatedAt: Date
     let isPinned: Bool
     let isFavorite: Bool
-    let isDeleted: Bool
+    let isTrashed: Bool
     let deletedAt: Date?
     let reminderDate: Date?
     let tags: [String]
