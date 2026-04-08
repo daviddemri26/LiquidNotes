@@ -29,20 +29,12 @@ enum NoteQueryEngine {
         }
     }
 
-    static func sorted(_ notes: [NoteProjection], by sortOrder: NoteSortOrder) -> [NoteProjection] {
+    static func sorted(_ notes: [NoteProjection], scope: NoteListScope) -> [NoteProjection] {
         notes.sorted { lhs, rhs in
-            if lhs.isPinned != rhs.isPinned {
+            if scope == .notes, lhs.isPinned != rhs.isPinned {
                 return lhs.isPinned && !rhs.isPinned
             }
-
-            switch sortOrder {
-            case .updatedDescending:
-                return lhs.updatedAt > rhs.updatedAt
-            case .createdDescending:
-                return lhs.createdAt > rhs.createdAt
-            case .alphabetical:
-                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-            }
+            return lhs.updatedAt > rhs.updatedAt
         }
     }
 }

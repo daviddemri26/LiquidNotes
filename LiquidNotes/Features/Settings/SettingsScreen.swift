@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsScreen: View {
-    @AppStorage("settings.sortOrder") private var sortOrder = NoteSortOrder.updatedDescending.rawValue
     @AppStorage("settings.createStartsInBody") private var createStartsInBody = false
     @AppStorage("settings.notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("settings.useSystemTint") private var useSystemTint = true
@@ -11,12 +10,6 @@ struct SettingsScreen: View {
         NavigationStack {
             Form {
                 Section("Notes") {
-                    Picker("Default Sort", selection: $sortOrder) {
-                        ForEach(NoteSortOrder.allCases) { order in
-                            Text(order.title).tag(order.rawValue)
-                        }
-                    }
-
                     Toggle("Start New Note in Body", isOn: $createStartsInBody)
                 }
 

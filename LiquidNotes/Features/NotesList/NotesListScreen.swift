@@ -11,6 +11,7 @@ fileprivate enum NotesSecondaryDestination: String, Identifiable {
 struct NotesListScreen: View {
     let scope: NoteListScope
     var showsPrimaryChrome: Bool = true
+    var handlesExternalRouting: Bool = true
 
     @Binding private var searchText: String
 
@@ -22,7 +23,6 @@ struct NotesListScreen: View {
 
     @Namespace private var transitionNamespace
 
-    @AppStorage("settings.sortOrder") private var persistedSortOrder = NoteSortOrder.updatedDescending.rawValue
     @State private var selectedTag: String?
     @State private var path: [UUID] = []
     @State private var secondaryDestination: NotesSecondaryDestination?
@@ -30,15 +30,13 @@ struct NotesListScreen: View {
     init(
         scope: NoteListScope,
         showsPrimaryChrome: Bool = true,
+        handlesExternalRouting: Bool = true,
         searchText: Binding<String> = .constant("")
     ) {
         self.scope = scope
         self.showsPrimaryChrome = showsPrimaryChrome
+        self.handlesExternalRouting = handlesExternalRouting
         self._searchText = searchText
-    }
-
-    private var sortOrder: NoteSortOrder {
-        NoteSortOrder(rawValue: persistedSortOrder) ?? .updatedDescending
     }
 
     private var availableTags: [String] {
@@ -52,7 +50,7 @@ struct NotesListScreen: View {
         let projections = allNotes.map(\.asProjection)
         let scoped = NoteQueryEngine.scoped(projections, scope: scope)
         let filtered = NoteQueryEngine.filtered(scoped, searchText: searchText, requiredTag: selectedTag)
-        let sorted = NoteQueryEngine.sorted(filtered, by: sortOrder)
+        let sorted = NoteQueryEngine.sorted(filtered, scope: scope)
         return sorted.compactMap { projection in
             allNotes.first(where: { $0.id == projection.id })
         }
@@ -80,16 +78,8 @@ struct NotesListScreen: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(scope.title)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Menu("Sort", systemImage: "arrow.up.arrow.down") {
-                        ForEach(NoteSortOrder.allCases) { order in
-                            Button(order.title) {
-                                persistedSortOrder = order.rawValue
-                            }
-                        }
-                    }
-
-                    if showsPrimaryChrome {
+                if showsPrimaryChrome {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Menu("More", systemImage: "ellipsis.circle") {
                             Button("Trash", systemImage: "trash") {
                                 secondaryDestination = .trash
@@ -110,12 +100,14 @@ struct NotesListScreen: View {
             .sheet(item: $secondaryDestination) { destination in
                 SecondaryDestinationSheet(destination: destination)
             }
-            .onChange(of: dependencies.router.pendingOpenNoteID) { _, newValue in
-                guard let id = newValue else { return }
-                if allNotes.contains(where: { $0.id == id }) {
-                    path = [id]
-                    _ = dependencies.router.consumePendingNoteID()
-                }
+            .onAppear {
+                processPendingRouteIfPossible()
+            }
+            .onChange(of: dependencies.router.pendingOpenNoteID) { _, _ in
+                processPendingRouteIfPossible()
+            }
+            .onChange(of: allNotes.map(\.id)) { _, _ in
+                processPendingRouteIfPossible()
             }
             .task(id: allNotes.count) {
                 NoteRepository.purgeExpiredTrash(in: modelContext)
@@ -186,18 +178,21 @@ struct NotesListScreen: View {
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: scope != .trash) {
                 if scope == .trash {
-                    Button("Delete", role: .destructive) {
+                    Button(role: .destructive) {
                         NoteRepository.deletePermanently(note, in: modelContext)
                         dependencies.haptics.impact(.rigid)
+                    } label: {
+                        Image(systemName: "trash")
                     }
                 } else {
-                    Button("Trash", role: .destructive) {
-                        NoteRepository.moveToTrash(note, in: modelContext)
-                        dependencies.haptics.impact(.medium)
+                    Button(role: .destructive) {
+                        moveToTrash(note)
+                    } label: {
+                        Image(systemName: "trash")
                     }
                 }
             }
-            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            .swipeActions(edge: .leading, allowsFullSwipe: scope != .trash) {
                 if scope == .trash {
                     Button("Restore") {
                         NoteRepository.restoreFromTrash(note, in: modelContext)
@@ -205,8 +200,10 @@ struct NotesListScreen: View {
                     }
                     .tint(.green)
                 } else {
-                    Button(note.isPinned ? "Unpin" : "Pin") {
+                    Button {
                         NoteRepository.togglePinned(note, in: modelContext)
+                    } label: {
+                        Image(systemName: note.isPinned ? "pin.fill" : "pin")
                     }
                     .tint(.blue)
                 }
@@ -226,15 +223,14 @@ struct NotesListScreen: View {
                 dependencies.haptics.impact(.rigid)
             }
         } else {
-            Button(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.slash" : "pin") {
+            Button(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.fill" : "pin") {
                 NoteRepository.togglePinned(note, in: modelContext)
             }
             Button(note.isFavorite ? "Unfavorite" : "Favorite", systemImage: note.isFavorite ? "star.slash" : "star") {
                 NoteRepository.toggleFavorite(note, in: modelContext)
             }
             Button("Move to Trash", systemImage: "trash", role: .destructive) {
-                NoteRepository.moveToTrash(note, in: modelContext)
-                dependencies.haptics.impact(.medium)
+                moveToTrash(note)
             }
         }
     }
@@ -245,6 +241,24 @@ struct NotesListScreen: View {
         withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
             path = [note.id]
         }
+    }
+
+    private func moveToTrash(_ note: Note) {
+        NoteRepository.moveToTrash(note, in: modelContext)
+        dependencies.haptics.impact(.medium)
+    }
+
+    private func processPendingRouteIfPossible() {
+        guard handlesExternalRouting else { return }
+        guard let id = dependencies.router.pendingOpenNoteID else { return }
+        guard allNotes.contains(where: { $0.id == id }) else { return }
+
+        if path.last != id {
+            withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
+                path = [id]
+            }
+        }
+        _ = dependencies.router.consumePendingNoteID()
     }
 
     private func retentionText(for note: Note) -> String {

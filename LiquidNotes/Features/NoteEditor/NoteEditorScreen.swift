@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UIKit
 
 struct NoteEditorScreen: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +12,7 @@ struct NoteEditorScreen: View {
     @FocusState private var focusedField: Field?
     @State private var isReminderSheetPresented = false
     @State private var tagDraft = ""
+    @State private var hasAppliedInitialFocus = false
 
     private enum Field {
         case title
@@ -86,9 +86,12 @@ struct NoteEditorScreen: View {
             ToolbarSpacer(.fixed)
 
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.slash" : "pin") {
+                Button {
                     NoteRepository.togglePinned(note, in: modelContext)
+                } label: {
+                    Image(systemName: note.isPinned ? "pin.fill" : "pin")
                 }
+                .accessibilityLabel(note.isPinned ? "Unpin note" : "Pin note")
                 Button("Move to Trash", systemImage: "trash", role: .destructive) {
                     NoteRepository.moveToTrash(note, in: modelContext)
                     dismiss()
@@ -134,7 +137,7 @@ struct NoteEditorScreen: View {
                 .presentationDragIndicator(.visible)
         }
         .onAppear {
-            focusedField = note.title.isEmpty ? .title : .body
+            applyInitialFocus()
         }
         .onChange(of: note.title) { _, _ in
             autosave()
@@ -154,6 +157,18 @@ struct NoteEditorScreen: View {
 
     private func autosave() {
         NoteRepository.touch(note, in: modelContext)
+    }
+
+    private func applyInitialFocus() {
+        guard !hasAppliedInitialFocus else { return }
+        hasAppliedInitialFocus = true
+
+        let targetField: Field = note.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .title : .body
+        Task { @MainActor in
+            focusedField = nil
+            await Task.yield()
+            focusedField = targetField
+        }
     }
 }
 
