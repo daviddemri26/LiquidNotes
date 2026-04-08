@@ -3,23 +3,16 @@ import SwiftData
 
 fileprivate enum NotesSecondaryDestination: String, Identifiable {
     case settings
-    case archive
     case trash
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .settings: return "Settings"
-        case .archive: return "Archive"
-        case .trash: return "Trash"
-        }
-    }
 }
 
 struct NotesListScreen: View {
     let scope: NoteListScope
     var showsPrimaryChrome: Bool = true
+
+    @Binding private var searchText: String
 
     @Environment(\.modelContext) private var modelContext
     @Environment(AppDependencies.self) private var dependencies
@@ -30,17 +23,28 @@ struct NotesListScreen: View {
     @Namespace private var transitionNamespace
 
     @AppStorage("settings.sortOrder") private var persistedSortOrder = NoteSortOrder.updatedDescending.rawValue
-    @State private var searchText = ""
     @State private var selectedTag: String?
     @State private var path: [UUID] = []
     @State private var secondaryDestination: NotesSecondaryDestination?
+
+    init(
+        scope: NoteListScope,
+        showsPrimaryChrome: Bool = true,
+        searchText: Binding<String> = .constant("")
+    ) {
+        self.scope = scope
+        self.showsPrimaryChrome = showsPrimaryChrome
+        self._searchText = searchText
+    }
 
     private var sortOrder: NoteSortOrder {
         NoteSortOrder(rawValue: persistedSortOrder) ?? .updatedDescending
     }
 
     private var availableTags: [String] {
-        let all = allNotes.flatMap(\.tagNames)
+        let all = allNotes
+            .filter { !$0.isDeleted }
+            .flatMap(\.tagNames)
         return Array(Set(all)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
@@ -54,7 +58,7 @@ struct NotesListScreen: View {
         }
     }
 
-    private var canShowPrimaryNewNoteButton: Bool {
+    private var canShowEmptyStateAction: Bool {
         showsPrimaryChrome && (scope == .notes || scope == .favorites)
     }
 
@@ -64,10 +68,10 @@ struct NotesListScreen: View {
                 if visibleNotes.isEmpty {
                     EmptyStateView(
                         title: scope == .trash ? "Trash is Empty" : "No Notes",
-                        subtitle: scope == .trash ? "Deleted notes appear here." : "Capture your first thought in one tap.",
+                        subtitle: scope == .trash ? "Items stay in Trash for 7 days before permanent deletion." : "Tap New Note to capture your first thought.",
                         systemImage: scope == .trash ? "trash" : "square.and.pencil",
-                        actionTitle: canShowPrimaryNewNoteButton ? "New Note" : nil,
-                        action: canShowPrimaryNewNoteButton ? { createAndOpenNote() } : nil
+                        actionTitle: canShowEmptyStateAction ? "Create Note" : nil,
+                        action: canShowEmptyStateAction ? { createAndOpenNote() } : nil
                     )
                 } else {
                     notesList
@@ -75,7 +79,6 @@ struct NotesListScreen: View {
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(scope.title)
-            .searchable(text: $searchText, prompt: "Search Notes")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu("Sort", systemImage: "arrow.up.arrow.down") {
@@ -88,41 +91,14 @@ struct NotesListScreen: View {
 
                     if showsPrimaryChrome {
                         Menu("More", systemImage: "ellipsis.circle") {
-                            Button("Settings", systemImage: "gearshape") {
-                                secondaryDestination = .settings
-                            }
-                            Button("Archive", systemImage: "archivebox") {
-                                secondaryDestination = .archive
-                            }
                             Button("Trash", systemImage: "trash") {
                                 secondaryDestination = .trash
                             }
+                            Button("Settings", systemImage: "gearshape") {
+                                secondaryDestination = .settings
+                            }
                         }
                     }
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                if canShowPrimaryNewNoteButton {
-                    HStack {
-                        Spacer()
-                        Button {
-                            createAndOpenNote()
-                        } label: {
-                            Label("New Note", systemImage: "square.and.pencil")
-                                .font(.headline.weight(.semibold))
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.primary)
-                        .background(.regularMaterial, in: Capsule(style: .continuous))
-                        .glassEffect(.regular.tint(.accentColor).interactive(), in: .capsule)
-                        .shadow(color: .black.opacity(0.12), radius: 10, y: 5)
-                        .accessibilityLabel("New Note")
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 10)
-                    .animation(.spring(duration: 0.35, bounce: 0.2), value: visibleNotes.count)
                 }
             }
             .navigationDestination(for: UUID.self) { noteID in
@@ -140,6 +116,9 @@ struct NotesListScreen: View {
                     path = [id]
                     _ = dependencies.router.consumePendingNoteID()
                 }
+            }
+            .task(id: allNotes.count) {
+                NoteRepository.purgeExpiredTrash(in: modelContext)
             }
         }
     }
@@ -191,8 +170,16 @@ struct NotesListScreen: View {
     private func noteRows(_ notes: [Note]) -> some View {
         ForEach(notes) { note in
             NavigationLink(value: note.id) {
-                NoteRowView(note: note)
-                    .matchedTransitionSource(id: note.id, in: transitionNamespace)
+                VStack(alignment: .leading, spacing: 6) {
+                    NoteRowView(note: note)
+                        .matchedTransitionSource(id: note.id, in: transitionNamespace)
+
+                    if scope == .trash {
+                        Text(retentionText(for: note))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .contextMenu {
                 noteContextMenu(note)
@@ -201,10 +188,12 @@ struct NotesListScreen: View {
                 if scope == .trash {
                     Button("Delete", role: .destructive) {
                         NoteRepository.deletePermanently(note, in: modelContext)
+                        dependencies.haptics.impact(.rigid)
                     }
                 } else {
                     Button("Trash", role: .destructive) {
                         NoteRepository.moveToTrash(note, in: modelContext)
+                        dependencies.haptics.impact(.medium)
                     }
                 }
             }
@@ -212,6 +201,7 @@ struct NotesListScreen: View {
                 if scope == .trash {
                     Button("Restore") {
                         NoteRepository.restoreFromTrash(note, in: modelContext)
+                        dependencies.haptics.selection()
                     }
                     .tint(.green)
                 } else {
@@ -229,9 +219,11 @@ struct NotesListScreen: View {
         if scope == .trash {
             Button("Restore", systemImage: "arrow.uturn.backward") {
                 NoteRepository.restoreFromTrash(note, in: modelContext)
+                dependencies.haptics.selection()
             }
             Button("Delete Permanently", systemImage: "trash", role: .destructive) {
                 NoteRepository.deletePermanently(note, in: modelContext)
+                dependencies.haptics.impact(.rigid)
             }
         } else {
             Button(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.slash" : "pin") {
@@ -240,19 +232,9 @@ struct NotesListScreen: View {
             Button(note.isFavorite ? "Unfavorite" : "Favorite", systemImage: note.isFavorite ? "star.slash" : "star") {
                 NoteRepository.toggleFavorite(note, in: modelContext)
             }
-
-            if scope == .archived {
-                Button("Unarchive", systemImage: "archivebox.fill") {
-                    NoteRepository.unarchive(note, in: modelContext)
-                }
-            } else {
-                Button("Archive", systemImage: "archivebox") {
-                    NoteRepository.archive(note, in: modelContext)
-                }
-            }
-
             Button("Move to Trash", systemImage: "trash", role: .destructive) {
                 NoteRepository.moveToTrash(note, in: modelContext)
+                dependencies.haptics.impact(.medium)
             }
         }
     }
@@ -263,6 +245,22 @@ struct NotesListScreen: View {
         withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
             path = [note.id]
         }
+    }
+
+    private func retentionText(for note: Note) -> String {
+        guard let days = NoteRepository.trashDaysRemaining(for: note) else {
+            return "Scheduled for automatic deletion"
+        }
+
+        if days <= 0 {
+            return "Deleting soon"
+        }
+
+        if days == 1 {
+            return "Deletes in 1 day"
+        }
+
+        return "Deletes in \(days) days"
     }
 }
 
@@ -276,8 +274,6 @@ private struct SecondaryDestinationSheet: View {
                 switch destination {
                 case .settings:
                     SettingsScreen()
-                case .archive:
-                    NotesListScreen(scope: .archived, showsPrimaryChrome: false)
                 case .trash:
                     NotesListScreen(scope: .trash, showsPrimaryChrome: false)
                 }
