@@ -92,7 +92,9 @@ struct NoteRepository {
     }
 
     static func purgeExpiredTrash(in context: ModelContext, referenceDate: Date = .now) {
-        let descriptor = FetchDescriptor<Note>()
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { $0.isTrashed || $0.isArchived }
+        )
         let notes = (try? context.fetch(descriptor)) ?? []
         var hasUpdates = false
 

@@ -10,7 +10,6 @@ struct LiquidTabView: View {
     @State private var isSearchExpanded = false
 
     @FocusState private var isSearchFieldFocused: Bool
-    @Namespace private var dockNamespace
 
     var body: some View {
         NotesListScreen(
@@ -40,10 +39,8 @@ struct LiquidTabView: View {
             HStack(alignment: .center, spacing: 14) {
                 if isSearchExpanded {
                     expandedSearchDock
-                        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomLeading)))
                 } else {
                     compactDock
-                        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomLeading)))
                 }
 
                 Spacer(minLength: 8)
@@ -87,7 +84,7 @@ struct LiquidTabView: View {
             }
 
             Button {
-                withAnimation(.spring(duration: 0.3, bounce: 0.15)) {
+                withAnimation(.easeInOut(duration: 0.2)) {
                     isSearchExpanded = true
                 }
                 dependencies.haptics.selection()
@@ -97,7 +94,6 @@ struct LiquidTabView: View {
                     .frame(width: 36, height: 36)
             }
             .buttonStyle(GlassIconButtonStyle())
-            .matchedGeometryEffect(id: "searchDock", in: dockNamespace)
             .accessibilityLabel("Search")
         }
         .padding(6)
@@ -141,7 +137,6 @@ struct LiquidTabView: View {
         .frame(height: 48)
         .background(.regularMaterial, in: Capsule(style: .continuous))
         .glassEffect(.regular.interactive(), in: .capsule)
-        .matchedGeometryEffect(id: "searchDock", in: dockNamespace)
     }
 
     private func collapseSearch() {

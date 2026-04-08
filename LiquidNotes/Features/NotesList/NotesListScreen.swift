@@ -61,9 +61,11 @@ struct NotesListScreen: View {
     }
 
     var body: some View {
+        let notes = visibleNotes
+
         NavigationStack(path: $path) {
             Group {
-                if visibleNotes.isEmpty {
+                if notes.isEmpty {
                     EmptyStateView(
                         title: scope == .trash ? "Trash is Empty" : "No Notes",
                         subtitle: scope == .trash ? "Items stay in Trash for 7 days before permanent deletion." : "Tap New Note to capture your first thought.",
@@ -72,7 +74,7 @@ struct NotesListScreen: View {
                         action: canShowEmptyStateAction ? { createAndOpenNote() } : nil
                     )
                 } else {
-                    notesList
+                    notesList(notes: notes)
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -111,7 +113,7 @@ struct NotesListScreen: View {
         }
     }
 
-    private var notesList: some View {
+    private func notesList(notes: [Note]) -> some View {
         List {
             if scope == .notes, !availableTags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -132,8 +134,8 @@ struct NotesListScreen: View {
             }
 
             if scope == .notes {
-                let pinned = visibleNotes.filter(\.isPinned)
-                let recent = visibleNotes.filter { !$0.isPinned }
+                let pinned = notes.filter(\.isPinned)
+                let recent = notes.filter { !$0.isPinned }
 
                 Section {
                     noteRows(pinned)
@@ -150,7 +152,7 @@ struct NotesListScreen: View {
                 }
             } else {
                 Section {
-                    noteRows(visibleNotes)
+                    noteRows(notes)
                 }
             }
         }
