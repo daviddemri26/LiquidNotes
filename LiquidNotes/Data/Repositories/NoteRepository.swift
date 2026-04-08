@@ -3,6 +3,8 @@ import SwiftData
 
 @MainActor
 struct NoteRepository {
+    static let trashRetentionDays = 7
+
     static func create(in context: ModelContext) -> Note {
         let note = Note()
         context.insert(note)
@@ -41,24 +43,16 @@ struct NoteRepository {
         touch(note, in: context)
     }
 
-    static func archive(_ note: Note, in context: ModelContext) {
-        note.isArchived = true
-        touch(note, in: context)
-    }
-
-    static func unarchive(_ note: Note, in context: ModelContext) {
-        note.isArchived = false
-        touch(note, in: context)
-    }
-
     static func moveToTrash(_ note: Note, in context: ModelContext) {
         note.isDeleted = true
         note.isArchived = false
+        note.deletedAt = .now
         touch(note, in: context)
     }
 
     static func restoreFromTrash(_ note: Note, in context: ModelContext) {
         note.isDeleted = false
+        note.deletedAt = nil
         touch(note, in: context)
     }
 
@@ -95,6 +89,53 @@ struct NoteRepository {
         let descriptor = FetchDescriptor<Tag>(sortBy: [SortDescriptor(\.name, order: .forward)])
         let tags = (try? context.fetch(descriptor)) ?? []
         return tags.map(\.name)
+    }
+
+    static func purgeExpiredTrash(in context: ModelContext, referenceDate: Date = .now) {
+        let descriptor = FetchDescriptor<Note>()
+        let notes = (try? context.fetch(descriptor)) ?? []
+        var hasUpdates = false
+
+        for note in notes {
+            if note.isArchived && !note.isDeleted {
+                note.isArchived = false
+                note.isDeleted = true
+                note.deletedAt = note.updatedAt
+                hasUpdates = true
+            }
+
+            if note.isDeleted && note.deletedAt == nil {
+                note.deletedAt = note.updatedAt
+                hasUpdates = true
+            }
+        }
+
+        let expiryInterval = TimeInterval(trashRetentionDays * 24 * 60 * 60)
+        for note in notes where note.isDeleted {
+            guard let deletedAt = note.deletedAt else { continue }
+            if deletedAt.addingTimeInterval(expiryInterval) <= referenceDate {
+                context.delete(note)
+                hasUpdates = true
+            }
+        }
+
+        if hasUpdates {
+            saveIfNeeded(context)
+        }
+    }
+
+    static func trashDaysRemaining(for note: Note, referenceDate: Date = .now) -> Int? {
+        guard note.isDeleted else { return nil }
+        guard let deletedAt = note.deletedAt else { return trashRetentionDays }
+
+        let expiryDate = deletedAt.addingTimeInterval(TimeInterval(trashRetentionDays * 24 * 60 * 60))
+        if expiryDate <= referenceDate { return 0 }
+
+        let calendar = Calendar.autoupdatingCurrent
+        let start = calendar.startOfDay(for: referenceDate)
+        let end = calendar.startOfDay(for: expiryDate)
+        let days = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+        return max(1, days)
     }
 
     private static func saveIfNeeded(_ context: ModelContext?) {

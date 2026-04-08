@@ -18,17 +18,19 @@ struct LiquidNotesTests {
 
         NoteRepository.moveToTrash(note, in: context)
         #expect(note.isDeleted == true)
+        #expect(note.deletedAt != nil)
 
         NoteRepository.restoreFromTrash(note, in: context)
         #expect(note.isDeleted == false)
+        #expect(note.deletedAt == nil)
     }
 
     @Test
     func queryEngineSortingFilteringSearch() {
         let now = Date.now
         let notes = [
-            NoteProjection(id: UUID(), title: "Bravo", body: "Hello", createdAt: now, updatedAt: now, isPinned: false, isFavorite: false, isArchived: false, isDeleted: false, reminderDate: nil, tags: ["work"]),
-            NoteProjection(id: UUID(), title: "Alpha", body: "World", createdAt: now.addingTimeInterval(-10), updatedAt: now.addingTimeInterval(-10), isPinned: true, isFavorite: true, isArchived: false, isDeleted: false, reminderDate: nil, tags: ["home"])
+            NoteProjection(id: UUID(), title: "Bravo", body: "Hello", createdAt: now, updatedAt: now, isPinned: false, isFavorite: false, isDeleted: false, deletedAt: nil, reminderDate: nil, tags: ["work"]),
+            NoteProjection(id: UUID(), title: "Alpha", body: "World", createdAt: now.addingTimeInterval(-10), updatedAt: now.addingTimeInterval(-10), isPinned: true, isFavorite: true, isDeleted: false, deletedAt: nil, reminderDate: nil, tags: ["home"])
         ]
 
         let scoped = NoteQueryEngine.scoped(notes, scope: .notes)
@@ -37,6 +39,21 @@ struct LiquidNotesTests {
 
         let sorted = NoteQueryEngine.sorted(scoped, by: .alphabetical)
         #expect(sorted.first?.title == "Alpha")
+    }
+
+    @MainActor
+    @Test
+    func purgeExpiredTrashRemovesOldNotes() throws {
+        let context = ModelContext(makeInMemoryContainer())
+        let oldDeletedAt = Calendar.current.date(byAdding: .day, value: -8, to: .now) ?? .now
+        let note = Note(title: "Old", isDeleted: true, deletedAt: oldDeletedAt)
+        context.insert(note)
+        try context.save()
+
+        NoteRepository.purgeExpiredTrash(in: context)
+
+        let fetched = try context.fetch(FetchDescriptor<Note>())
+        #expect(fetched.isEmpty)
     }
 
     @MainActor

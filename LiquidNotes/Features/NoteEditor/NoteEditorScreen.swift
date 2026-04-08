@@ -22,7 +22,7 @@ struct NoteEditorScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LNTheme.Spacing.medium) {
-                TextField("Title", text: $note.title, axis: .vertical)
+                TextField("Title", text: $note.title)
                     .font(.title3.weight(.semibold))
                     .focused($focusedField, equals: .title)
                     .textInputAutocapitalization(.sentences)
@@ -38,9 +38,7 @@ struct NoteEditorScreen: View {
 
                 if let reminderDate = note.reminderDate {
                     Label {
-                        Text(reminderDate, style: .date)
-                        + Text(" at ")
-                        + Text(reminderDate, style: .time)
+                        Text("\(reminderDate, style: .date) at \(reminderDate, style: .time)")
                     } icon: {
                         Image(systemName: "bell.badge")
                     }
@@ -91,12 +89,9 @@ struct NoteEditorScreen: View {
                 Button(note.isPinned ? "Unpin" : "Pin", systemImage: note.isPinned ? "pin.slash" : "pin") {
                     NoteRepository.togglePinned(note, in: modelContext)
                 }
-                Button(note.isArchived ? "Unarchive" : "Archive", systemImage: note.isArchived ? "archivebox.fill" : "archivebox") {
-                    if note.isArchived {
-                        NoteRepository.unarchive(note, in: modelContext)
-                    } else {
-                        NoteRepository.archive(note, in: modelContext)
-                    }
+                Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                    NoteRepository.moveToTrash(note, in: modelContext)
+                    dismiss()
                 }
             }
 

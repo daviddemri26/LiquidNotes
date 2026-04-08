@@ -5,11 +5,9 @@ enum NoteQueryEngine {
         notes.filter { note in
             switch scope {
             case .notes:
-                return !note.isDeleted && !note.isArchived
+                return !note.isDeleted
             case .favorites:
-                return !note.isDeleted && !note.isArchived && note.isFavorite
-            case .archived:
-                return !note.isDeleted && note.isArchived
+                return !note.isDeleted && note.isFavorite
             case .trash:
                 return note.isDeleted
             }

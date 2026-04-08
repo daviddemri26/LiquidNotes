@@ -12,6 +12,7 @@ final class Note {
     var isFavorite: Bool
     var isArchived: Bool
     var isDeleted: Bool
+    var deletedAt: Date?
     var colorMarkerHex: String?
     var reminderDate: Date?
     var metadataJSON: Data?
@@ -29,6 +30,7 @@ final class Note {
         isFavorite: Bool = false,
         isArchived: Bool = false,
         isDeleted: Bool = false,
+        deletedAt: Date? = nil,
         colorMarkerHex: String? = nil,
         reminderDate: Date? = nil,
         metadataJSON: Data? = nil,
@@ -44,6 +46,7 @@ final class Note {
         self.isFavorite = isFavorite
         self.isArchived = isArchived
         self.isDeleted = isDeleted
+        self.deletedAt = deletedAt
         self.colorMarkerHex = colorMarkerHex
         self.reminderDate = reminderDate
         self.metadataJSON = metadataJSON
@@ -87,8 +90,8 @@ extension Note {
             updatedAt: updatedAt,
             isPinned: isPinned,
             isFavorite: isFavorite,
-            isArchived: isArchived,
             isDeleted: isDeleted,
+            deletedAt: deletedAt,
             reminderDate: reminderDate,
             tags: tagNames
         )

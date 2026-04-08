@@ -40,7 +40,7 @@ struct SettingsScreen: View {
                 Section("Advanced") {
                     Toggle("Enable Future Intelligence Features", isOn: $futureAIEnabled)
                     NavigationLink("Trash") {
-                        NotesListScreen(scope: .trash)
+                        NotesListScreen(scope: .trash, showsPrimaryChrome: false)
                     }
                 }
             }
