@@ -1,0 +1,5 @@
+* text=auto eol=lf
+
+# Keep Xcode project file readable as text
+*.pbxproj text
+
