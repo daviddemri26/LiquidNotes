@@ -1,21 +1,23 @@
 # LiquidNotes
 
-Base de projet iOS (SwiftUI) pour l'application **LiquidNotes**.
+LiquidNotes is a super simple note-taking app built with SwiftUI, designed with a modern **Liquid Glass** look and feel.
 
-## Prérequis
+The goal is straightforward: capture ideas quickly, keep important notes close, and enjoy a clean, stylish interface.
 
-- Xcode récent
-- macOS
+## What You Can Do
 
-## Ouvrir le projet
+- Create and edit notes in seconds
+- Mark notes as favorites for quick access
+- Organize your experience through basic settings
 
-1. Ouvrir `LiquidNotes.xcodeproj` dans Xcode.
-2. Sélectionner le schéma `LiquidNotes`.
-3. Lancer l'app sur un simulateur iOS.
+## Design Direction
 
-## Structure
+LiquidNotes focuses on a minimal and elegant UI:
 
-- `LiquidNotes/` : code source de l'app
-- `LiquidNotesTests/` : tests unitaires
-- `LiquidNotesUITests/` : tests UI
+- smooth glass-like surfaces
+- lightweight visual hierarchy
+- clear interactions with zero clutter
 
+## Project Status
+
+This is a simple, clean foundation that can be updated and improved over time with more features, deeper customization, and smarter workflows.
